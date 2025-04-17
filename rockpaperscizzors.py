@@ -8,44 +8,53 @@ list1 = ("rock", "paper", "scissors")
 
 def twoplayer():
     while True:
-        input1 = getpass.getpass(prompt="Player one now, rock paper or scissors: ").lower()
+        input1 = getpass.getpass(prompt="Player 1, enter your choice (rock, paper, or scissors): ").lower()
         if input1 not in list1:
             print("Invalid input. Please enter 'rock', 'paper', or 'scissors'.")
             continue
-        input2 = getpass.getpass(prompt="Player two now, rock paper or scissors: ").lower()
+        input2 = getpass.getpass(prompt="Player 2, enter your choice (rock, paper, or scissors): ").lower()
         if input2 not in list1:
             print("Invalid input. Please enter 'rock', 'paper', or 'scissors'.")
             continue
 
+        print("\n--- Results ---")
+        print(f"Player 1 chose: {input1}")
+        print(f"Player 2 chose: {input2}")
         if (input1 == list1[0] and input2 == list1[2]) or \
            (input1 == list1[1] and input2 == list1[0]) or \
            (input1 == list1[2] and input2 == list1[1]):
-            print("Player one wins!")
+            print("Player 1 wins!")
         elif (input2 == list1[0] and input1 == list1[2]) or \
              (input2 == list1[1] and input1 == list1[0]) or \
              (input2 == list1[2] and input1 == list1[1]):
-            print("Player two wins!")
+            print("Player 2 wins!")
         else:
             print("It's a tie!")
 
-        play_again = input("Do you want to play again locally? (yes/no): ").lower()
-        if play_again != "yes":
+        play_again1 = input("Player 1, do you want to play again? (yes/no): ").lower()
+        play_again2 = input("Player 2, do you want to play again? (yes/no): ").lower()
+
+        if play_again1 != "yes" or play_again2 != "yes":
+            print("Game over.")
             break
 
 
 def cpu():
     while True:
-        input1 = input("Player one now, rock paper or scissors: ").lower()
+        input1 = input("Player 1, enter your choice (rock, paper, or scissors): ").lower()
         if input1 not in list1:
             print("Invalid input. Please enter 'rock', 'paper', or 'scissors'.")
             continue
         input2 = random.choice(list1)
+
+        print("\n--- Results ---")
+        print(f"You chose: {input1}")
         print(f"CPU chose: {input2}")
 
         if (input1 == list1[0] and input2 == list1[2]) or \
            (input1 == list1[1] and input2 == list1[0]) or \
            (input1 == list1[2] and input2 == list1[1]):
-            print("Player one wins!")
+            print("Player 1 wins!")
         elif (input2 == list1[0] and input1 == list1[2]) or \
              (input2 == list1[1] and input1 == list1[0]) or \
              (input2 == list1[2] and input1 == list1[1]):
@@ -75,9 +84,9 @@ def multiplayer():
 
                 while True:
                     # Host (Player 1) inputs their choice
-                    input1 = input("Host (Player 1), enter your choice (rock, paper, or scissors): ").lower()
+                    input1 = input("Player 1, enter your choice (rock, paper, or scissors): ").lower()
                     if input1 not in list1:
-                        client_socket.send("Invalid input from host. Please try again.".encode())
+                        client_socket.send("Invalid input from Player 1. Please try again.".encode())
                         continue
                     client_socket.send(input1.encode())
 
@@ -86,17 +95,19 @@ def multiplayer():
                     if not input2_bytes:
                         break
                     input2 = input2_bytes.decode().lower()
-                    print(f"Player 2 chose: {input2}")
                     if input2 not in list1:
-                        print("Invalid input from player 2.")
+                        print("Invalid input received from Player 2.")
                         continue
 
                     # Determine the winner
                     result = determine_winner_online(input1, input2)
 
                     # Send the result to Player 2
-                    client_socket.send(f"You chose {input2}. Opponent chose {input1}. {result}\n".encode())
-                    print(f"Player 1 chose {input1}. Player 2 chose {input2}. {result}")
+                    client_socket.send(f"{result}\n".encode())
+                    print(f"\n--- Results ---")
+                    print(f"Player 1 chose: {input1}")
+                    print(f"Player 2 chose: {input2}")
+                    print(result)
 
                     # Ask both players if they want to play again
                     play_again_host = input("Do you want to play again? (yes/no): ").lower()
@@ -124,9 +135,9 @@ def multiplayer():
             elif (p1 == list1[0] and p2 == list1[2]) or \
                  (p1 == list1[1] and p2 == list1[0]) or \
                  (p1 == list1[2] and p2 == list1[1]):
-                return "You win!"  # From host's perspective
+                return "You win!"  # From host's perspective (Player 1)
             else:
-                return "Opponent wins!" # From host's perspective
+                return "Opponent wins!" # From host's perspective (Player 2)
 
         initialize_server(host, port)
 
@@ -141,37 +152,43 @@ def multiplayer():
                 print(f"Connected to server at {host}:{port}")
 
                 while True:
-                    # Receive the server's prompt (which is the host's choice)
-                    opponent_choice_bytes = client.recv(1024)
-                    if not opponent_choice_bytes:
-                        break
-                    opponent_choice = opponent_choice_bytes.decode().lower()
-                    if opponent_choice == "Invalid input from host. Please try again.":
-                        print(opponent_choice)
-                        continue
-                    print(f"Opponent chose: {opponent_choice}")
-
                     # Send the player's choice
-                    choice = input("Enter your choice (rock, paper, or scissors): ").lower()
+                    choice = input("Player 2, enter your choice (rock, paper, or scissors): ").lower()
                     if choice not in list1:
                         print("Invalid input. Please enter 'rock', 'paper', or 'scissors'.")
                         continue
                     client.send(choice.encode())
 
+                    # Receive the opponent's choice
+                    opponent_choice_bytes = client.recv(1024)
+                    if not opponent_choice_bytes:
+                        break
+                    opponent_choice = opponent_choice_bytes.decode().lower()
+                    if opponent_choice == "Invalid input from Player 1. Please try again.":
+                        print(opponent_choice)
+                        continue
+
                     # Receive the result
                     result = client.recv(1024).decode()
+                    print(f"\n--- Results ---")
+                    print(f"Player 2 chose: {choice}")
+                    print(f"Player 1 chose: {opponent_choice}")
                     print(result)
 
-                    # Receive the "play again" prompt
+                    # Receive the "play again" prompt and send response
                     play_again_prompt = client.recv(1024).decode()
-                    print(f"Opponent asks: Do you want to play again? ({play_again_prompt.lower()})")
-                    play_again = input("Do you want to play again? (yes/no): ").lower()
+                    play_again = input(f"Opponent asks: Do you want to play again? ({play_again_prompt.lower()}) (yes/no): ").lower()
                     client.send(play_again.encode())
 
-                    # Exit if the game is over
-                    if play_again != "yes":
-                        print("Game over. Thanks for playing!")
+                    # Check if the game should end
+                    server_response = client.recv(1024).decode()
+                    if server_response == "Game over. Thanks for playing!":
+                        print(server_response)
                         break
+                    elif server_response == "Opponent wants to play again.":
+                        print(server_response) # Inform the client
+                    elif server_response == "Waiting for opponent's response...":
+                        print(server_response) # Inform the client
 
             except ConnectionRefusedError:
                 print("Connection refused. Make sure the server is running.")
