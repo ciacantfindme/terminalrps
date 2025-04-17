@@ -1,7 +1,7 @@
 import getpass
 import random
 import socket
-import threading
+
 
 
 list1 = ("rock", "paper", "scissors")
@@ -100,25 +100,31 @@ def multiplayer():
                         continue
 
                     # Determine the winner
-                    result = determine_winner_online(input1, input2)
+                    host_result, client_result = determine_winner_online(input1, input2)
 
-                    # Send the result to Player 2
-                    client_socket.send(f"{result}\n".encode())
-                    print(f"\n--- Results ---")
-                    print(f"Player 1 chose: {input1}")
-                    print(f"Player 2 chose: {input2}")
-                    print(result)
+                    # Create a full result message
+                    result_message = f"\n--- Results ---\nPlayer 1 chose: {input1}\nPlayer 2 chose: {input2}\n{client_result}"
+                    print(result_message.replace(client_result, host_result))  # Host sees their result
+                    client_socket.send(result_message.encode())  # Client sees their result
 
-                    # Ask both players if they want to play again
+                    # Ask host if they want to play again
                     play_again_host = input("Do you want to play again? (yes/no): ").lower()
                     client_socket.send(play_again_host.encode())
+                    # Receive client's answer
                     play_again_client = client_socket.recv(1024).decode().lower()
 
-                    # Check if either player wants to quit
-                    if play_again_host != "yes" or play_again_client != "yes":
-                        client_socket.send("Game over. Thanks for playing!".encode())
-                        print("Game over. Thanks for playing!")
+                    # Inform both sides of the other's decision
+                    if play_again_host != "yes":
+                        client_socket.send("Opponent does not want to play again.".encode())
+                        print("You chose to end the game.")
                         break
+                    elif play_again_client != "yes":
+                        client_socket.send("Opponent does not want to play again.".encode())
+                        print("Opponent chose to end the game.")
+                        break
+                    else:
+                        client_socket.send("Opponent wants to play again.".encode())
+                        print("Both players want to play again.")
 
             except KeyboardInterrupt:
                 print("\nServer interrupted. Closing connections...")
@@ -130,14 +136,15 @@ def multiplayer():
                 server.close()
 
         def determine_winner_online(p1, p2):
+            # Returns (host_result, client_result)
             if p1 == p2:
-                return "It's a tie!"
+                return ("It's a tie!", "It's a tie!")
             elif (p1 == list1[0] and p2 == list1[2]) or \
                  (p1 == list1[1] and p2 == list1[0]) or \
                  (p1 == list1[2] and p2 == list1[1]):
-                return "You win!"  # From host's perspective (Player 1)
+                return ("You win!", "You lose!")  # Host wins, client loses
             else:
-                return "Opponent wins!" # From host's perspective (Player 2)
+                return ("You lose!", "You win!")  # Host loses, client wins
 
         initialize_server(host, port)
 
@@ -168,27 +175,28 @@ def multiplayer():
                         print(opponent_choice)
                         continue
 
-                    # Receive the result
-                    result = client.recv(1024).decode()
-                    print(f"\n--- Results ---")
-                    print(f"Player 2 chose: {choice}")
-                    print(f"Player 1 chose: {opponent_choice}")
-                    print(result)
+                    # Receive the result message (already formatted)
+                    result_message = client.recv(1024).decode()
+                    print(result_message)
 
-                    # Receive the "play again" prompt and send response
-                    play_again_prompt = client.recv(1024).decode()
-                    play_again = input(f"Opponent asks: Do you want to play again? ({play_again_prompt.lower()}) (yes/no): ").lower()
-                    client.send(play_again.encode())
-
-                    # Check if the game should end
-                    server_response = client.recv(1024).decode()
-                    if server_response == "Game over. Thanks for playing!":
+                    # Receive host's play again answer
+                    play_again_host = client.recv(1024).decode().lower()
+                    if play_again_host == "yes":
+                        play_again = input("Opponent wants to play again. Do you want to play again? (yes/no): ").lower()
+                        client.send(play_again.encode())
+                        # Receive final decision from host
+                        server_response = client.recv(1024).decode()
                         print(server_response)
+                        if server_response == "Opponent does not want to play again.":
+                            break
+                        elif play_again != "yes":
+                            break
+                        # else, continue
+                    else:
+                        print("Opponent does not want to play again. Press Enter to exit.")
+                        input()
+                        client.send("no".encode())  # Send a dummy response to keep protocol in sync
                         break
-                    elif server_response == "Opponent wants to play again.":
-                        print(server_response) # Inform the client
-                    elif server_response == "Waiting for opponent's response...":
-                        print(server_response) # Inform the client
 
             except ConnectionRefusedError:
                 print("Connection refused. Make sure the server is running.")
